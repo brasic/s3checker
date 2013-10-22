@@ -14,8 +14,6 @@ var bucketName string
 var employerId string
 var apiCalls int64 = 0
 
-const workerCount = 20
-
 func main() {
 	processArgs()
 	idsToCheck := readIds()

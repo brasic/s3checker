@@ -17,12 +17,26 @@ var apiCalls int64 = 0
 const workerCount = 20
 
 func main() {
+	processArgs()
+	idsToCheck := readIds()
+	presenceMap := checkBulkKeys(idsToCheck)
+	notFound := keysNotFound(presenceMap)
+	checkIndividualKeys(notFound)
+	debug("Calls to S3 API:", apiCalls)
+}
+
+func processArgs() {
 	if len(os.Args) < 3 {
 		println("Usage: " + os.Args[0] + " EMPLOYER_ID BUCKET_NAME")
 		os.Exit(1)
 	}
 	employerId = os.Args[1]
 	bucketName = os.Args[2]
+	connect()
+}
+
+// Connect to S3 using the HTTP endpoint for performance.
+func connect() {
 	auth, err := aws.EnvAuth()
 	if err != nil {
 		println("S3 connect failed due to auth issues, exiting!")
@@ -30,12 +44,6 @@ func main() {
 	}
 	USEast := aws.Region{S3Endpoint: "http://s3.amazonaws.com"}
 	bucket = s3.New(auth, USEast).Bucket(bucketName)
-	idsToCheck := readIds()
-	presenceMap := checkBulkKeys(idsToCheck)
-	notFound := keysNotFound(presenceMap)
-	debug("not found by bulk:", notFound)
-	checkIndividualKeys(notFound)
-	debug("Calls to S3 API:", apiCalls)
 }
 
 // Read the list of ids from standard input, validate and return them sorted
@@ -66,5 +74,6 @@ func keysNotFound(presence map[string]bool) (notFound []string) {
 			notFound = append(notFound, key)
 		}
 	}
+	debug("not found by bulk:", notFound)
 	return
 }

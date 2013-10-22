@@ -32,9 +32,9 @@ func main() {
 	}
 	USEast := aws.Region{S3Endpoint: "http://s3.amazonaws.com"}
 	bucket = s3.New(auth, USEast).Bucket(bucketName)
-	ids := readIds()
-	presence := checkFiles(ids)
-	notFound := keysNotFound(presence)
+	idsToCheck := readIds()
+	presenceMap := checkBulkKeys(idsToCheck)
+	notFound := keysNotFound(presenceMap)
 	debug("not found by bulk:", notFound)
 	checkIndividualKeys(notFound)
 	debug("Calls to S3 API:", apiCount)
@@ -60,7 +60,7 @@ func readIds() (ids []string) {
 	return
 }
 
-func checkFiles(ids []string) (found map[string]bool) {
+func checkBulkKeys(ids []string) (found map[string]bool) {
 	found = make(map[string]bool)
 	for i, _ := range ids {
 		found[format(ids[i])] = false

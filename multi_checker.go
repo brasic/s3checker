@@ -49,31 +49,39 @@ func lesserOf(a, b int) int {
 	return b
 }
 
-func checkBulkKeysParallel(keys []string) {
-	input := make(chan []string)
-	output := make(chan []s3.Key)
+func checkBulkKeysParallel(keys []string) []string {
+	workerInput := make(chan []string)
+	workerOutput := make(chan []s3.Key)
 	quit := make(chan int)
+	aggregatorResult := make(chan []string, 1)
 	jobs := split(keys)
-	go handleResults(output, quit)
-	startBulkWorkers(input, output, quit)
+	go aggregateResults(keys, workerOutput, aggregatorResult)
+	startBulkWorkers(workerInput, workerOutput, quit)
 	for i, _ := range jobs {
-		input <- jobs[i]
+		workerInput <- jobs[i]
 	}
-	notifyBulkDone(input)
+	notifyBulkDone(workerInput)
 	waitForAcks(quit)
-	close(output) // signals handleResults it has everything it needs.
-	<-quit
+	close(workerOutput) // signal aggregator it has everything it needs.
+	return <-aggregatorResult
 }
 
-func handleResults(downloadedKeys <-chan []s3.Key, quit chan<- int) {
+func aggregateResults(candidates []string, downloadedKeys <-chan []s3.Key, result chan []string) {
+	found := make(map[string]bool)
+	for i, _ := range candidates {
+		found[format(candidates[i])] = false
+	}
 	for {
 		batch, ok := <-downloadedKeys
 		if !ok {
 			fmt.Println("Channel closed, time to clean up")
-			quit <- 1
+			result <- []string{}
 			break
 		} else {
 			fmt.Println("got", len(batch), "new keys")
+			for i, _ := range batch {
+				found[batch[i].Key] = true
+			}
 		}
 	}
 }
@@ -84,10 +92,6 @@ func checkBulkWorker(inbox <-chan []string, outbox chan<- []s3.Key, quit chan<- 
 		if len(ids) == 0 {
 			quit <- 1
 			break
-		}
-		found := make(map[string]bool)
-		for i, _ := range ids {
-			found[format(ids[i])] = false
 		}
 		allFiles := []s3.Key{}
 		debug("lex. earliest key is", ids[0])
@@ -106,9 +110,6 @@ func checkBulkWorker(inbox <-chan []string, outbox chan<- []s3.Key, quit chan<- 
 			if len(resp.Contents) < 1 {
 				debug("got no responses.")
 				break
-			}
-			for i, _ := range resp.Contents {
-				found[resp.Contents[i].Key] = true
 			}
 			allFiles = append(allFiles, resp.Contents...)
 			nextMarker = resp.Contents[len(resp.Contents)-1].Key

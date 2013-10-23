@@ -63,42 +63,48 @@ func checkBulkKeys(ids []string) (found map[string]bool) {
 func checkIndividualKeys(keys []string) {
 	work := make(chan string)
 	quit := make(chan int)
-	go startIndividualCheckers(work, quit)
+	startCheckers(work, quit)
 	for i, _ := range keys {
 		work <- keys[i]
 	}
+	notifyDone(work)
+	waitForAcks(quit)
+}
 
-	// Notify the workers that there is no more work and wait for them to ACK.
+func startCheckers(work chan string, quit chan int) {
+	for i := 0; i < workerCount; i++ {
+		go checkEach(work, quit)
+	}
+}
+func notifyDone(work chan string) {
 	for i := 0; i < workerCount; i++ {
 		work <- "__DONE__"
 	}
+}
+
+func waitForAcks(quit chan int) {
 	for i := 0; i < workerCount; i++ {
 		<-quit
 	}
-
 }
 
-func startIndividualCheckers(work <-chan string, quit chan<- int) {
-	for i := 0; i < workerCount; i++ {
-		go func() {
-			for {
-				item := <-work
-				if item == "__DONE__" {
-					quit <- 1
-					break
-				}
-				resp, err := bucket.List(item, "", "", 1)
-				atomic.AddInt64(&apiCalls, 1)
-				if err != nil {
-					fmt.Println(err)
-				}
-				if len(resp.Contents) < 1 {
-					fmt.Println(deformat(item))
-				} else {
-					debug("WARNING: bulkChecker said", item, "didn't exist,",
-						"but it was found by individualChecker")
-				}
-			}
-		}()
+func checkEach(work <-chan string, quit chan<- int) {
+	for {
+		item := <-work
+		if item == "__DONE__" {
+			quit <- 1
+			break
+		}
+		resp, err := bucket.List(item, "", "", 1)
+		atomic.AddInt64(&apiCalls, 1)
+		if err != nil {
+			fmt.Println(err)
+		}
+		if len(resp.Contents) < 1 {
+			fmt.Println(deformat(item))
+		} else {
+			debug("WARNING: bulkChecker said", item, "didn't exist,",
+				"but it was found by individualChecker")
+		}
 	}
 }

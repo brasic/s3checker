@@ -67,20 +67,20 @@ func checkBulkKeysParallel(keys []string) []string {
 }
 
 func aggregateResults(candidates []string, downloadedKeys <-chan []s3.Key, result chan []string) {
-	found := make(map[string]bool)
+	presence := make(map[string]bool)
 	for i, _ := range candidates {
-		found[format(candidates[i])] = false
+		presence[format(candidates[i])] = false
 	}
 	for {
 		batch, ok := <-downloadedKeys
 		if !ok {
-			fmt.Println("Channel closed, time to clean up")
-			result <- []string{}
+			debug("Agg channel closed, time to clean up")
+			result <- keysNotFound(presence)
 			break
 		} else {
-			fmt.Println("got", len(batch), "new keys")
+			debug("aggregator got", len(batch), "new keys")
 			for i, _ := range batch {
-				found[batch[i].Key] = true
+				presence[batch[i].Key] = true
 			}
 		}
 	}

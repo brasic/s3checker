@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"launchpad.net/goamz/aws"
 	"launchpad.net/goamz/s3"
 	"os"
@@ -25,11 +26,18 @@ func main() {
 
 func processArgs() {
 	if len(os.Args) < 3 {
-		println("Usage: " + os.Args[0] + " EMPLOYER_ID BUCKET_NAME")
-		os.Exit(1)
+		usage()
 	}
 	employerId = os.Args[1]
 	bucketName = os.Args[2]
+	if len(os.Args) == 4 {
+		count, err := strconv.Atoi(os.Args[3])
+		if err != nil || count < 1 {
+			usage("WORKERS must be a number > 0")
+		} else {
+			workerCount = count
+		}
+	}
 	connect()
 }
 
@@ -37,8 +45,7 @@ func processArgs() {
 func connect() {
 	auth, err := aws.EnvAuth()
 	if err != nil {
-		println("S3 connect failed due to auth issues, exiting!")
-		os.Exit(1)
+		usage("S3 connect failed due to auth issues, exiting!")
 	}
 	USEast := aws.Region{S3Endpoint: "http://s3.amazonaws.com"}
 	bucket = s3.New(auth, USEast).Bucket(bucketName)
@@ -74,4 +81,12 @@ func keysNotFound(presence map[string]bool) (notFound []string) {
 	}
 	debug("not found by bulk:", notFound)
 	return
+}
+
+func usage(args ...interface{}) {
+	if len(args) > 0 {
+		fmt.Println(args...)
+	}
+	println("Usage: " + os.Args[0] + " EMPLOYER_ID BUCKET_NAME [WORKER_COUNT]")
+	os.Exit(1)
 }

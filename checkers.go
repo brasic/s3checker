@@ -7,7 +7,8 @@ import (
 )
 
 const maxKeysPerCall = 1000
-const workerCount = 20
+
+var workerCount = 20
 
 // Given a list of keys, query amazon for their existence 1000 at a time.  This
 // is imprecise since instead of asking amazon "which of these 1000 keys do you

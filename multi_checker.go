@@ -54,12 +54,28 @@ func checkBulkKeysParallel(keys []string) {
 	output := make(chan []s3.Key)
 	quit := make(chan int)
 	jobs := split(keys)
+	go handleResults(output, quit)
 	startBulkWorkers(input, output, quit)
 	for i, _ := range jobs {
 		input <- jobs[i]
 	}
 	notifyBulkDone(input)
 	waitForAcks(quit)
+	close(output) // signals handleResults it has everything it needs.
+	<-quit
+}
+
+func handleResults(downloadedKeys <-chan []s3.Key, quit chan<- int) {
+	for {
+		batch, ok := <-downloadedKeys
+		if !ok {
+			fmt.Println("Channel closed, time to clean up")
+			quit <- 1
+			break
+		} else {
+			fmt.Println("got", len(batch), "new keys")
+		}
+	}
 }
 
 func checkBulkWorker(inbox <-chan []string, outbox chan<- []s3.Key, quit chan<- int) {

@@ -1,12 +1,12 @@
-s3checker
-=========
+s3grep
+======
 
 A tool for quickly asking the amazon S3 API which keys out of a large number
 are not present.
 
 ## Usage
 
-    ./s3checker [-v] BUCKET < keys
+    s3grep [-v] BUCKET < keys
 
 where `keys` is a file containing a list of S3 keys with no leading slash.
 

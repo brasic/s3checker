@@ -3,7 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
 )
 
 var isDebug bool
@@ -23,22 +22,10 @@ func debug(args ...interface{}) {
 
 // Is the found S3 key lex. greater than the equivalent id key?
 func gt(found, expecting string) bool {
-	return found > format(expecting)
+	return found > expecting
 }
 
 // Return a key that is lex. less than the input, for use as a starting point.
 func predecessor(num string) (prev string) {
 	return num[:len(num)-1]
-}
-
-// Transform an id-formatted string into key-format.
-func format(num string) string {
-	return employerId + "/docs/" + num + ".pdf"
-}
-
-// Transform a key-formatted string into id-format.
-func deformat(key string) string {
-	pieces := strings.Split(key, "/")
-	item := pieces[len(pieces)-1]
-	return strings.Split(item, ".")[0]
 }

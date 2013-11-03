@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"launchpad.net/goamz/s3"
+	"path"
 	"sync/atomic"
 )
 
@@ -14,21 +15,21 @@ var workerCount = 20
 // is imprecise since instead of asking amazon "which of these 1000 keys do you
 // have", we can only say, "give me next 1000 keys alphabetically subsequent to
 // this one", then compare with the ones you are looking for.
-func checkBulkKeys(ids []string) (found map[string]bool) {
+func checkBulkKeys(keys []string) (found map[string]bool) {
 	found = make(map[string]bool)
-	for i, _ := range ids {
-		found[format(ids[i])] = false
+	for i, _ := range keys {
+		found[keys[i]] = false
 	}
 	allFiles := make([]s3.Key, 0)
-	debug("lex. earliest key is", ids[0])
-	debug("lex. last key is", ids[len(ids)-1])
-	firstSearchKey := predecessor(ids[0])
-	lastSearchKey := ids[len(ids)-1]
-	path := fmt.Sprintf("%s/docs/", employerId)
-	nextMarker := fmt.Sprintf("%s%s.pdf", path, firstSearchKey)
+	debug("lex. earliest key is", keys[0])
+	debug("lex. last key is", keys[len(keys)-1])
+	firstSearchKey := predecessor(keys[0])
+	lastSearchKey := keys[len(keys)-1]
+	prefix := path.Dir(keys[0]) + "/"
+	nextMarker := firstSearchKey
 	for {
-		debug("querying for prefix", path, "starting with", nextMarker)
-		resp, err := bucket.List(path, "/", nextMarker, maxKeysPerCall)
+		debug("querying for prefix", prefix, "starting with", nextMarker)
+		resp, err := bucket.List(prefix, "/", nextMarker, maxKeysPerCall)
 		atomic.AddInt64(&apiCalls, 1)
 		if err != nil {
 			panic(err)
@@ -38,12 +39,15 @@ func checkBulkKeys(ids []string) (found map[string]bool) {
 			break
 		}
 		for i, _ := range resp.Contents {
-			found[resp.Contents[i].Key] = true
+			if _, ok := found[resp.Contents[i].Key]; ok {
+				debug("marking", resp.Contents[i].Key, "as found")
+				found[resp.Contents[i].Key] = true
+			}
 		}
 		allFiles = append(allFiles, resp.Contents...)
 		nextMarker = resp.Contents[len(resp.Contents)-1].Key
 		debug("got", len(resp.Contents), "keys, ending with", nextMarker, ". Currently have", len(allFiles), "total")
-		if gt(nextMarker, lastSearchKey) {
+		if nextMarker > lastSearchKey {
 			debug("ending early,", nextMarker, "is > than our sample's largest member,", lastSearchKey)
 			break
 		}
@@ -54,6 +58,7 @@ func checkBulkKeys(ids []string) (found map[string]bool) {
 	}
 
 	debug("Done getting", len(allFiles), "keys")
+	debug(found)
 	return found
 }
 
@@ -101,7 +106,7 @@ func checkEach(work <-chan string, quit chan<- int) {
 			fmt.Println(err)
 		}
 		if len(resp.Contents) < 1 {
-			fmt.Println(deformat(item))
+			fmt.Println(item)
 		} else {
 			debug("WARNING: bulkChecker said", item, "didn't exist,",
 				"but it was found by individualChecker")

@@ -2,43 +2,35 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"launchpad.net/goamz/aws"
 	"launchpad.net/goamz/s3"
 	"os"
 	"sort"
-	"strconv"
 )
 
 var bucket *s3.Bucket
 var bucketName string
-var employerId string
+var invertResults bool
 var apiCalls int64 = 0
 
-func main() {
-	processArgs()
-	idsToCheck := readIds()
-	presenceMap := checkBulkKeys(idsToCheck)
-	notFound := keysNotFound(presenceMap)
-	checkIndividualKeys(notFound)
-	debug("Calls to S3 API:", apiCalls)
+func init() {
+	flag.BoolVar(&invertResults, "v", false, "Invert results")
+	flag.Parse()
+	args := flag.Args()
+	if len(args) != 1 {
+		usage("Need S3_BUCKET")
+	}
+	bucketName = args[0]
+	connect()
 }
 
-func processArgs() {
-	if len(os.Args) < 3 {
-		usage()
-	}
-	employerId = os.Args[1]
-	bucketName = os.Args[2]
-	if len(os.Args) == 4 {
-		count, err := strconv.Atoi(os.Args[3])
-		if err != nil || count < 1 {
-			usage("WORKERS must be a number > 0")
-		} else {
-			workerCount = count
-		}
-	}
-	connect()
+func main() {
+	keysToCheck := readKeys()
+	presenceMap := checkBulkKeys(keysToCheck)
+	printKeys(presenceMap)
+	debug("Calls to S3 API:", apiCalls)
 }
 
 // Connect to S3 using the HTTP endpoint for performance.
@@ -53,21 +45,17 @@ func connect() {
 
 // Read the list of ids from standard input, validate and return them sorted
 // lexicographically.
-func readIds() (ids []string) {
-	ids = make([]string, 0)
+func readKeys() (keys []string) {
+	keys = make([]string, 0)
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		text := scanner.Text()
-		_, err := strconv.Atoi(text)
-		if err != nil {
-			panic(err)
-		}
-		ids = append(ids, text)
+		keys = append(keys, text)
 	}
 	if err := scanner.Err(); err != nil {
 		panic(err)
 	}
-	sort.Sort(sort.StringSlice(ids))
+	sort.Sort(sort.StringSlice(keys))
 	return
 }
 
@@ -83,10 +71,20 @@ func keysNotFound(presence map[string]bool) (notFound []string) {
 	return
 }
 
+// Print all keys that were not found (or the opposite if invertResults is set)
+func printKeys(presence map[string]bool) {
+	for key, wasFound := range presence {
+		if (!invertResults && !wasFound) || (invertResults && wasFound) {
+			fmt.Println(key)
+		}
+	}
+}
+
 func usage(args ...interface{}) {
 	if len(args) > 0 {
 		fmt.Println(args...)
 	}
-	println("Usage: " + os.Args[0] + " EMPLOYER_ID BUCKET_NAME [WORKER_COUNT]")
+	println("Usage: " + os.Args[0] + " [-v] S3_BUCKET")
+	println("Pass keys to check on standard input.")
 	os.Exit(1)
 }

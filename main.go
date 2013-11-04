@@ -11,7 +11,6 @@ import (
 )
 
 var bucket *s3.Bucket
-var bucketName string
 var invertResults bool
 var apiCalls int64 = 0
 
@@ -22,8 +21,7 @@ func init() {
 	if len(args) != 1 {
 		usage("Need S3_BUCKET")
 	}
-	bucketName = args[0]
-	connect()
+	connect(args[0])
 }
 
 func main() {
@@ -34,7 +32,7 @@ func main() {
 }
 
 // Connect to S3 using the HTTP endpoint for performance.
-func connect() {
+func connect(bucketName string) {
 	auth, err := aws.EnvAuth()
 	if err != nil {
 		usage("S3 connect failed due to auth issues, exiting!")

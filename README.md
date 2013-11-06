@@ -4,6 +4,16 @@ s3grep
 A tool for quickly asking the amazon S3 API which keys out of a large number
 are not present.
 
+## Setup
+
+With go and bzr installed,
+
+    go get github.com/brasic/s3grep && go install github.com/brasic/s3grep
+
+You'll need to set the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+environment variables to values that have access to the bucket you want to
+check.
+
 ## Usage
 
     s3grep [-v] BUCKET < keys
